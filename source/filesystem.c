@@ -26,7 +26,6 @@ Result filesystemInit(void)
 {
     Result ret;
     
-    fsInit();
     ret = srvGetServiceHandleDirect(&fsHandle, "fs:USER");
     if(ret)return ret;
     
@@ -51,7 +50,6 @@ Result filesystemExit(void)
     ret |= FSUSER_CloseArchive(&sdmcArchive);
     fsEndUseSession();
     ret |= svcCloseHandle(fsHandle);
-    fsExit();
     return ret;
 }
 

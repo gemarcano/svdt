@@ -599,7 +599,6 @@ int checkInjectDirectory(char* path, lsDir* dir)
 int main()
 {
     amInit();
-    aptInit();
     filesystemInit();
     
     if (file_exist("no_alpha_sort"))
@@ -1424,7 +1423,6 @@ int main()
 
     gfxExit();
     filesystemExit();
-    aptExit();
     amExit();
     return 0;
 }
