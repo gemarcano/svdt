@@ -37,7 +37,7 @@ short KEY_MOD = 0xFF53;
 int MH4U_decryptBuff(u8** inbuff, u64 lSize){
 
     u8 * buffer;
-    long position = 0;
+    u64 position = 0;
 
     buffer = *inbuff;
 
@@ -47,7 +47,7 @@ int MH4U_decryptBuff(u8** inbuff, u64 lSize){
         BLOWFISH_CTX ctx;
         Blowfish_Init (&ctx, (unsigned char*)"blowfish key iorajegqmrna4itjeangmb agmwgtobjteowhv9mope", 56);
         for (position = 0; position < lSize; position += 8){
-            Blowfish_Decrypt(&ctx, buffer+position, buffer+4+position);
+            Blowfish_Decrypt(&ctx, (long unsigned int*)buffer+position, (long unsigned int*)buffer+4+position);
         }
         //Verify
         unsigned short SIXTEEN;
@@ -111,7 +111,7 @@ int MH4U_decryptBuff(u8** inbuff, u64 lSize){
 int MH4U_encryptBuff(u8** inbuff, u64 lSize){
 
     u8 * buffer2;
-    long position = 0;
+    u64 position = 0;
 
     buffer2 = *inbuff;
 
@@ -167,7 +167,7 @@ int MH4U_encryptBuff(u8** inbuff, u64 lSize){
         BLOWFISH_CTX ctx;
         Blowfish_Init (&ctx, (unsigned char*)"blowfish key iorajegqmrna4itjeangmb agmwgtobjteowhv9mope", 56);
         for (position = 0; position < lSize+8; position += 8){
-            Blowfish_Encrypt(&ctx, buffer2+position, buffer2+4+position);
+            Blowfish_Encrypt(&ctx, (long unsigned int*)buffer2+position, (long unsigned int*)buffer2+4+position);
         }
 
         return 1;

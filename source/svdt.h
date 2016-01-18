@@ -30,7 +30,7 @@ void freeDir(lsDir* dir);
 void gotoParentDirectory(lsDir* dir);
 void gotoSubDirectory(lsDir* dir, char* basename);
 char* lsDirBasename(lsDir* dir);
-void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle);
+void scanDir(lsDir* dir, FS_Archive* archive);
 
 Result getTitleList(u8 mediatype, int* usable_count);
 void clearTitleList();

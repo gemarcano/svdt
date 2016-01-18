@@ -569,12 +569,12 @@ Result writePokeRumbleSecureValue()
     //putchar('\n');
     
     
-    deleteFile((char*)POKERW_SVPATH,&saveGameArchive,&saveGameFsHandle);
+    deleteFile((char*)POKERW_SVPATH,&saveGameArchive);
     
 	Handle outFileHandle;
 	u32 bytesWritten;
 	
-	res = FSUSER_OpenFile(&saveGameFsHandle, &outFileHandle, saveGameArchive, FS_makePath(PATH_CHAR, POKERW_SVPATH), FS_OPEN_CREATE | FS_OPEN_WRITE, FS_ATTRIBUTE_NONE);
+	res = FSUSER_OpenFile(&outFileHandle, saveGameArchive, fsMakePath(PATH_ASCII, POKERW_SVPATH), FS_OPEN_CREATE | FS_OPEN_WRITE, 0);
 	if(res){return res;}
 
 	res = FSFILE_Write(outFileHandle, &bytesWritten, 0x0, header_buffer, 0x30, 0x10001);
@@ -585,7 +585,7 @@ Result writePokeRumbleSecureValue()
 	res = FSFILE_Close(outFileHandle);
 	if(res){return res;}
 
-	res = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+	res = FSUSER_ControlArchive(saveGameArchive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0); 
     
     free(final_buffer);
     return 0;
@@ -666,12 +666,12 @@ Result writeMH4USecureValue()
 	MH4U_encryptBuff(&buffer, size-8);
 	
 	//Write file
-    deleteFile((char*)PATH,&saveGameArchive,&saveGameFsHandle);
+    deleteFile((char*)PATH,&saveGameArchive);
     
 	Handle outFileHandle;
 	u32 bytesWritten;
 	
-	res = FSUSER_OpenFile(&saveGameFsHandle, &outFileHandle, saveGameArchive, FS_makePath(PATH_CHAR, PATH), FS_OPEN_CREATE | FS_OPEN_WRITE, FS_ATTRIBUTE_NONE);
+	res = FSUSER_OpenFile(&outFileHandle, saveGameArchive, fsMakePath(PATH_ASCII, PATH), FS_OPEN_CREATE | FS_OPEN_WRITE, 0);
 	if(res){return res;}
 
 	res = FSFILE_Write(outFileHandle, &bytesWritten, 0, buffer, size, 0x10001);
@@ -680,7 +680,7 @@ Result writeMH4USecureValue()
 	res = FSFILE_Close(outFileHandle);
 	if(res){return res;}
 
-	res = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+	res = FSUSER_ControlArchive(saveGameArchive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
     
     free(buffer);
     return 0;

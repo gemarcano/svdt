@@ -42,9 +42,9 @@ void gotoSubDirectory(lsDir* dir, char* basename)
     cwd = strcat(cwd,basename);
     if (cwd[strlen(cwd+1)] != '/')
     {
-		if(canHasConsole){
-			//printf("\nappending slash");
-		}
+        if(canHasConsole){
+            //printf("\nappending slash");
+        }
         cwd = strcat(cwd,"/");
     }
     if (canHasConsole)
@@ -77,20 +77,20 @@ int lsLine_cmp(lsLine* line1, lsLine* line2)
     int cmp = (line2->isDirectory) - (line1->isDirectory);
     if (cmp) {
         return cmp;
-	} else {
-		cmp = strcasecmp(line1->thisLine,line2->thisLine);
-		if (cmp) return cmp;
-		return -strcmp(line1->thisLine,line2->thisLine);
-	}
+    } else {
+        cmp = strcasecmp(line1->thisLine,line2->thisLine);
+        if (cmp) return cmp;
+        return -strcmp(line1->thisLine,line2->thisLine);
+    }
 }
 
-void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
+void scanDir(lsDir* dir, FS_Archive* archive)
 {
     if (!dir) return;
 
     dir->firstLine = NULL;
     Handle dirHandle;
-    Result res = FSUSER_OpenDirectory(fsHandle, &dirHandle, *archive, FS_makePath(PATH_CHAR, dir->thisDir));
+    Result res = FSUSER_OpenDirectory(&dirHandle, *archive, fsMakePath(PATH_ASCII, dir->thisDir));
     dir->dirEntryCount = 0;
     dir->lsOffset = 0;
     // cribbing from 3ds_hb_menu again
@@ -99,8 +99,8 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
     static char pathname[MAX_PATH_LENGTH];
     do
     {
-        static FS_dirent entry;
-        memset(&entry,0,sizeof(FS_dirent));
+        static FS_DirectoryEntry entry;
+        memset(&entry,0,sizeof(FS_DirectoryEntry));
         entriesRead=0;
         res = FSDIR_Read(dirHandle, &entriesRead, 1, &entry);
         if (res)
@@ -118,7 +118,7 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
         {
             lsLine* tempLine = (lsLine*)malloc(sizeof(lsLine));
             strncpy(tempLine->thisLine,pathname,MAX_PATH_LENGTH);
-            tempLine->isDirectory = entry.isDirectory;
+            tempLine->isDirectory = entry.attributes & FS_ATTRIBUTE_DIRECTORY;
             tempLine->fileSize = entry.fileSize;
             tempLine->nextLine = NULL;
             if (!alphabetSort)
@@ -158,10 +158,10 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
 
 Result getTitleList(u8 mediatype, int* usable_count)
 {
-    int i;
+    u32 i;
     // cribbing from 3ds_hb_menu for the ???th time
-	u32 num;
-	Result ret = AM_GetTitleCount(mediatype, &num);
+    u32 num;
+    Result ret = AM_GetTitleCount(mediatype, &num);
     if(ret)
         return ret;
     u64* tmp = (u64*)malloc(sizeof(u64) * num);
@@ -212,20 +212,24 @@ void clearTitleList()
 
 Result getTitleTitle(u64 tid, u8 mediatype, char* titleTitle)
 {
+    filesystemReadySaveRead();
     Handle fileHandle;
     smdh_s* icon = malloc(sizeof(smdh_s));
     u32 tid_high = tid >> 32;
     u32 tid_low = tid & 0xffffffff;
     u32 archivePath[] = {tid_low, tid_high, mediatype, 0x00000000};
-	static const u32 filePath[] = {0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000};	
-	Result ret = FSUSER_OpenFileDirectly(&sdmcFsHandle, &fileHandle, (FS_archive){0x2345678a, (FS_path){PATH_BINARY, 0x10, (u8*)archivePath}}, (FS_path){PATH_BINARY, 0x14, (u8*)filePath}, FS_OPEN_READ, FS_ATTRIBUTE_NONE);
-    if(ret) return ret;
+    static const u32 filePath[] = {0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000};    
+    FS_Archive saveArchive = {0x2345678a, (FS_Path){PATH_BINARY, 0x10, (u8*)archivePath}, 0};
+    FS_Path savePath = {PATH_BINARY, 0x14, (u8*)filePath};
+    Result ret = FSUSER_OpenFileDirectly(&fileHandle, saveArchive, savePath, FS_OPEN_READ, 0);
+    if(R_FAILED(ret)) return ret;
+    
     u32 bytesRead;
     ret = FSFILE_Read(fileHandle, &bytesRead, 0x0, icon, sizeof(smdh_s));
     char buffer[0x40];
     unicodeToChar(buffer,icon->applicationTitles[1].shortDescription,0x40);
     strncpy(titleTitle,buffer,0x40);
-	FSFILE_Close(fileHandle);
+    FSFILE_Close(fileHandle);
     
     // excise special characters from title
     // (necessary because we just use this string for directory names)
@@ -235,7 +239,9 @@ Result getTitleTitle(u64 tid, u8 mediatype, char* titleTitle)
     {
         titleTitle[forbiddenChar-titleTitle] = ' ';
     }
-	if (titleTitle[strlen(titleTitle)-1] == ' ') titleTitle[strlen(titleTitle)-1] = '\0';
+    if (titleTitle[strlen(titleTitle)-1] == ' ') titleTitle[strlen(titleTitle)-1] = '\0';
+
+    filesystemDoneSaveRead();
     return ret;
 }
 
@@ -257,3 +263,4 @@ Result nthTitleInList(int n, u8 mediatype, char* titleTitle, u64* tid)
     *tid = currentTitle->thisTitle;
     return res;
 }
+

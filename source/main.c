@@ -130,22 +130,16 @@ int detectOverwrite(char* path, lsDir* destDir)
 void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
 {
     if (!dir || !destDir || !path) return;
-    Handle* curFsHandle = NULL;
-    Handle* destFsHandle = NULL;
-    FS_archive* curArchive = NULL;
-    FS_archive* destArchive = NULL;
+    FS_Archive* curArchive = NULL;
+    FS_Archive* destArchive = NULL;
     switch(machine_state)
     {
         case SELECT_SAVE:
-            curFsHandle = &saveGameFsHandle;
             curArchive = &saveGameArchive;
-            destFsHandle = &sdmcFsHandle;
             destArchive = &sdmcArchive;
             break;
         case SELECT_SDMC:
-            curFsHandle = &sdmcFsHandle;
             curArchive = &sdmcArchive;
-            destFsHandle = &saveGameFsHandle;
             destArchive = &saveGameArchive;
             break;
         default:
@@ -213,9 +207,9 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
             printf("[deletePath %s]",deletePath);
         }
         if (curArchive==&sdmcArchive)
-            deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
+            deleteFile(deletePath,&saveGameArchive);
         if (curArchive==&saveGameArchive)
-            deleteFile(deletePath,&sdmcArchive,&sdmcFsHandle);
+            deleteFile(deletePath,&sdmcArchive);
         free(deletePath);
     }
     
@@ -233,7 +227,7 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         debugOut("Reading original file ...");
         printf("[original path %s]\n",origpath);
     }
-    Result res = loadFile(origpath,data,curArchive,curFsHandle,size);
+    Result res = loadFile(origpath,data,curArchive,size);
     if(res)
     {
         if (canHasConsole)
@@ -248,7 +242,7 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         debugOut("Writing new file ...");
         printf("[destination path %s]\n",destpath);
     }
-    res = writeFile(destpath,data,(u32)size,destArchive,destFsHandle);
+    res = writeFile(destpath,data,(u32)size,destArchive);
     free(data);
     if(res)
     {
@@ -256,7 +250,7 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         {
             debugOutCancel("! Error writing file.");
             printf("[result code %08x]\n",(unsigned int)res);
-            if(res==RES_OUT_OF_SPACE_CARD || res==RES_OUT_OF_SPACE_ESHOP)
+            if(res==(Result)RES_OUT_OF_SPACE_CARD || res==(Result)RES_OUT_OF_SPACE_ESHOP)
                 printf("(You may be running out of save space!)\n");
         }
 #ifdef DEBUG_INFO
@@ -288,10 +282,8 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
 void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
 {
     if (!dir || !destDir) return;
-    Handle* curFsHandle = NULL;
-    Handle* destFsHandle = NULL;
-    FS_archive* curArchive = NULL;
-    FS_archive* destArchive = NULL;
+    FS_Archive* curArchive = NULL;
+    FS_Archive* destArchive = NULL;
     
     char origpath[MAX_PATH_LENGTH] = {0};
     char destpath[MAX_PATH_LENGTH] = {0};
@@ -306,15 +298,11 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
     switch(machine_state)
     {
         case SELECT_SAVE:
-            curFsHandle = &saveGameFsHandle;
             curArchive = &saveGameArchive;
-            destFsHandle = &sdmcFsHandle;
             destArchive = &sdmcArchive;
             break;
         case SELECT_SDMC:
-            curFsHandle = &sdmcFsHandle;
             curArchive = &sdmcArchive;
-            destFsHandle = &saveGameFsHandle;
             destArchive = &saveGameArchive;
             break;
         default:
@@ -332,7 +320,7 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
         strcat(destpath,destName);
         if (canHasConsole)
             printf("destpath %s\n",destpath);
-        FSUSER_CreateDirectory(destFsHandle,*destArchive,FS_makePath(PATH_CHAR,destpath));
+        FSUSER_CreateDirectory(*destArchive,fsMakePath(PATH_ASCII,destpath), 0);
         gotoSubDirectory(destDir,destName);
     } else {
         if (path)
@@ -340,18 +328,18 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
             strcat(destpath,path);
             if (canHasConsole)
                 printf("destpath %s\n",destpath);
-            FSUSER_CreateDirectory(destFsHandle,*destArchive,FS_makePath(PATH_CHAR,destpath));
+            FSUSER_CreateDirectory(*destArchive,fsMakePath(PATH_ASCII,destpath), 0);
             gotoSubDirectory(destDir,path);
         }
     }
-    scanDir(destDir,destArchive,destFsHandle);
+    scanDir(destDir,destArchive);
     if(destArchive==&saveGameArchive)
     {
 #ifdef DEBUG_INFO
         if (canHasConsole)
             printf("\ncalling ControlArchive\n");
 #endif
-        FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+        FSUSER_ControlArchive(saveGameArchive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
         // this is absolutely necessary
         // otherwise any changes we make don't stick!
     }
@@ -363,7 +351,7 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
         printf("destpath %s",destpath);
     }
 #endif
-    scanDir(dir,curArchive,curFsHandle);
+    scanDir(dir,curArchive);
     lsLine* curLine = dir->firstLine;
     calledFromCopyDir++;
     while (curLine && (machine_state!=SVDT_IS_KILL))
@@ -385,8 +373,8 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
     if (path)
         gotoParentDirectory(dir);
     gotoParentDirectory(destDir);
-    scanDir(destDir,destArchive,destFsHandle);
-    scanDir(dir,curArchive,curFsHandle);
+    scanDir(destDir,destArchive);
+    scanDir(dir,curArchive);
 }
 
 void printDir(lsDir* dir)
@@ -611,12 +599,13 @@ int checkInjectDirectory(char* path, lsDir* dir)
 int main()
 {
     amInit();
+    aptInit();
     filesystemInit();
-    //if (!doesFileNotExist("/3ds/svdt/no_alpha_sort",&sdmcFsHandle,sdmcArchive))
+    
     if (file_exist("no_alpha_sort"))
         alphabetSort = 0;
 
-    FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,"/svdt"));
+    FSUSER_CreateDirectory(sdmcArchive,fsMakePath(PATH_ASCII,"/svdt"), 0);
     
     u64 tid;
     u64 tid2 = 0;
@@ -627,35 +616,17 @@ int main()
     time_t temps = time(NULL);
     strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
     strncpy(titleTitle,tempStr,MAX_PATH_LENGTH);
-    FSUSER_GetMediaType(&saveGameFsHandle,&mediatype);
-    if (mediatype==2)
+    FSUSER_GetMediaType(&mediatype);
+    if (mediatype==MEDIATYPE_GAME_CARD)
     {
         // we fetch target app title automatically for gamecards
-        getTitleTitle(0x0,2,titleTitle);
+        getTitleTitle(0x0, MEDIATYPE_GAME_CARD, titleTitle);
         titleTitle_set = 1;
     } else {
         aptOpenSession();
-        APT_GetProgramID(NULL, &tid2);
+        APT_GetProgramID(&tid2);
         aptCloseSession();
-/*
-        //Fetch title from /svdt/tid.bin
-        FILE * pFile;
-        long lSize;
-        size_t result;
-        pFile = fopen ( "/svdt/tid.bin" , "rb" );
-        if (pFile!=NULL) {
-            fseek (pFile , 0 , SEEK_END);
-            lSize = ftell (pFile);
-            rewind (pFile);
-            result = fread (&tid2,1,sizeof(tid2),pFile);
-            if (result == lSize) {
-                fclose (pFile);
-                //Make sure we can't load this again without going trough HBL
-                remove("/svdt/tid.bin");
-            }
-        }
-        fclose (pFile);
-*/
+        
         getTitleList(mediatype,&titleTitles_available);
         if (titleTitle_set < 0){
             if (tid2 != 0){
@@ -685,8 +656,8 @@ int main()
     lsDir cwd_sdmc, cwd_save;
     strncpy(cwd_sdmc.thisDir,HOME,MAX_PATH_LENGTH);
     strncpy(cwd_save.thisDir,HOME,MAX_PATH_LENGTH);
-    scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
-    scanDir(&cwd_save,&saveGameArchive,&saveGameFsHandle);
+    scanDir(&cwd_sdmc,&sdmcArchive);
+    scanDir(&cwd_save,&saveGameArchive);
     
     hidScanInput();
     
@@ -703,7 +674,7 @@ int main()
         {
             strcat(destPath,"/svdt/");
             strcat(destPath,titleTitle);
-            FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,destPath));
+            FSUSER_CreateDirectory(sdmcArchive,fsMakePath(PATH_ASCII,destPath), 0);
             gotoSubDirectory(&cwd_sdmc,titleTitle);
         }
         copyDir(&cwd_save,NULL,&cwd_sdmc,tempStr);
@@ -712,7 +683,7 @@ int main()
         {
             gotoParentDirectory(&cwd_sdmc);
         }
-        scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+        scanDir(&cwd_sdmc,&sdmcArchive);
         if(!(hidKeysHeld() & KEY_R))
             canHasConsole = 2;
     }
@@ -728,17 +699,17 @@ int main()
         } else {
             gotoSubDirectory(&cwd_sdmc,"svdt_inject");
             freeDir(&cwd_sdmc);
-            scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+            scanDir(&cwd_sdmc,&sdmcArchive);
             copyDir(&cwd_sdmc,NULL,&cwd_save,NULL);
-            scanDir(&cwd_save,&saveGameArchive,&saveGameFsHandle);
+            scanDir(&cwd_save,&saveGameArchive);
             gotoParentDirectory(&cwd_sdmc);
-            scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+            scanDir(&cwd_sdmc,&sdmcArchive);
             canHasConsole = 3;
         }
     }
     if (mediatype!=2)
         machine_state = SET_TARGET_TITLE;
-    
+   
     gfxInitDefault();
     gfxSet3D(false);
     
@@ -759,7 +730,9 @@ int main()
     consoleSetWindow(&sdmcList,TOP_WIDTH/2+CURSOR_WIDTH,3,LIST_WIDTH,MAX_LS_LINES+1);
     consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,HEIGHT);//8);
     consoleSetWindow(&notifyBar,0,HEIGHT-1,TOP_WIDTH,1);
-    
+
+
+        
     if (machine_state != SET_TARGET_TITLE)
     {
         printInstructions();
@@ -822,11 +795,10 @@ int main()
     lsDir* ccwd = &cwd_sdmc;
     lsDir* notccwd = &cwd_save;
     PrintConsole* curList = &sdmcList;
-    Handle* curFsHandle = &sdmcFsHandle;
-    FS_archive* curArchive = &sdmcArchive;
+    FS_Archive* curArchive = &sdmcArchive;
     
-    u8 sdmcCurrent, sdmcPrevious;
-    sdmcCurrent = 1;
+    bool sdmcCurrent, sdmcPrevious;
+    sdmcCurrent = true;
     
     if (mediatype!=2)
         machine_state = SET_TARGET_TITLE;
@@ -948,12 +920,12 @@ int main()
                     memset(destPath,0,MAX_PATH_LENGTH);
                     strcat(destPath,"/svdt/");
                     strcat(destPath,titleTitle);
-                    FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,destPath));
+                    FSUSER_CreateDirectory(sdmcArchive,fsMakePath(PATH_ASCII,destPath), 0);
                     strcat(destPath,"/");
                     strcat(destPath,tempStr);
                     strcat(tempPath,"/svdt/");
                     strcat(tempPath,tempStr);
-                    Result res = FSUSER_RenameDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,tempPath),sdmcArchive,FS_makePath(PATH_CHAR,destPath));
+                    Result res = FSUSER_RenameDirectory(sdmcArchive,fsMakePath(PATH_ASCII,tempPath),sdmcArchive,fsMakePath(PATH_ASCII,destPath));
                     if (res)
                     {
                         textcolour(RED);
@@ -961,7 +933,7 @@ int main()
                     } else { debugOutSuccess("Success!"); }
                 }
                 titleTitle_set = 1;
-                scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+                scanDir(&cwd_sdmc,&sdmcArchive);
                 clearTitleList();
                 // if we're here, then mediatype!=2, so ...
                 secureGameFromProductCode(productCode);
@@ -1068,19 +1040,19 @@ int main()
                 char origSDPath[MAX_PATH_LENGTH];
                 strncpy(origSDPath,notccwd->thisDir,MAX_PATH_LENGTH);
                 strncpy(notccwd->thisDir,HOME,MAX_PATH_LENGTH);
-                scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+                scanDir(&cwd_sdmc,&sdmcArchive);
                 gotoSubDirectory(&cwd_sdmc,"svdt");
                 if (titleTitle_set)
                 {
                     strcat(destPath,"/svdt/");
                     strcat(destPath,titleTitle);
-                    FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,destPath));
+                    FSUSER_CreateDirectory(sdmcArchive,fsMakePath(PATH_ASCII,destPath), 0);
                     gotoSubDirectory(&cwd_sdmc,titleTitle);
                 }
                 machine_state = SELECT_SAVE;
                 copyDir(&cwd_save,NULL,&cwd_sdmc,tempStr);
                 strncpy(notccwd->thisDir,origSDPath,MAX_PATH_LENGTH);
-                scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+                scanDir(&cwd_sdmc,&sdmcArchive);
                 goGoGadgetCopy = 1;           
             }
             if(hidKeysDown() & KEY_Y)
@@ -1096,7 +1068,7 @@ int main()
 #endif
                 machine_state = SELECT_SAVE;
                 copyDir(ccwd,NULL,notccwd,destPath);
-                scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+                scanDir(&cwd_sdmc,&sdmcArchive);
                 goGoGadgetCopy = 1;
             }
             if(goGoGadgetCopy)
@@ -1114,7 +1086,7 @@ int main()
             }
         }
         sdmcPrevious = sdmcCurrent; 
-        FSUSER_IsSdmcDetected(NULL, &sdmcCurrent);
+        FSUSER_IsSdmcDetected(&sdmcCurrent);
         if(sdmcCurrent != sdmcPrevious)
         {
             if(sdmcPrevious)
@@ -1159,16 +1131,16 @@ int main()
                             strcat(deletePath,selection->thisLine);
                             if(selection->isDirectory)
                             {
-                                FSUSER_DeleteDirectoryRecursively(curFsHandle,*curArchive,FS_makePath(PATH_CHAR,deletePath));
+                                FSUSER_DeleteDirectoryRecursively(*curArchive,fsMakePath(PATH_ASCII,deletePath));
                                 if(curArchive==&saveGameArchive)
                                 {
 #ifdef DEBUG_INFO
                                     printf("\ncalling ControlArchive\n");
 #endif
-                                    FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+				    FSUSER_ControlArchive(saveGameArchive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
                                 }
                             } else {
-                                deleteFile(deletePath,curArchive,curFsHandle);
+                                deleteFile(deletePath,curArchive);
                             }
                             break;
                     }
@@ -1268,7 +1240,6 @@ int main()
             ccwd = &cwd_save;
             notccwd = &cwd_sdmc;
             curList = &saveList;
-            curFsHandle = &saveGameFsHandle;
             curArchive = &saveGameArchive;
             redrawCursor(&cursor_y,ccwd);
         }
@@ -1281,7 +1252,6 @@ int main()
             ccwd = &cwd_sdmc;
             notccwd = &cwd_save;
             curList = &sdmcList;
-            curFsHandle = &sdmcFsHandle;
             curArchive = &sdmcArchive;
             redrawCursor(&cursor_y,ccwd);
         }
@@ -1406,7 +1376,7 @@ int main()
         if(cwd_needs_update)
         {
             freeDir(ccwd);
-            scanDir(ccwd,curArchive,curFsHandle);
+            scanDir(ccwd,curArchive);
             debugOut("Scanned current directory.");
             printf("[path: %s]\n[dirEntryCount: %d]\n",ccwd->thisDir,ccwd->dirEntryCount);
 #ifdef DEBUG_INFO
@@ -1424,11 +1394,11 @@ int main()
             switch (machine_state)
             {
                 case SELECT_SAVE:
-                    scanDir(notccwd,&sdmcArchive,&sdmcFsHandle);
+                    scanDir(notccwd,&sdmcArchive);
                     machine_state = SELECT_SDMC;
                     break;
                 case SELECT_SDMC:
-                    scanDir(notccwd,&saveGameArchive,&saveGameFsHandle);
+                    scanDir(notccwd,&saveGameArchive);
                     machine_state = SELECT_SAVE;
                     break;
                 default:
@@ -1452,8 +1422,9 @@ int main()
         gfxSwapBuffers();
     }
 
-    filesystemExit();
-    amExit();
     gfxExit();
+    filesystemExit();
+    aptExit();
+    amExit();
     return 0;
 }

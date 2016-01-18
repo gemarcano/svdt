@@ -44,7 +44,7 @@ void wordwrap(char *towrap, int width)
     do
     {
         strncpy(buffer,towrap+idx,width);
-        if(strlen(buffer)<width)
+        if(strlen(buffer)<(size_t)width)
         {
             printf(buffer);
             putchar(' ');
@@ -73,5 +73,5 @@ void wordwrap(char *towrap, int width)
                 idx = idx + width - 1;
             }
         }
-    }while (strlen(buffer)==width);
+    }while (strlen(buffer)==(size_t)width);
 }
